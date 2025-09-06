@@ -14,40 +14,40 @@ PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontolog
 
 # -----------------------------------------------------------------------------------------------------------------------------
 # PUNTO 1 - ¿Cuánto vale una casa en La Plata (no está cargado Berisso como ciudad)? -
-
 SELECT (AVG(?price) as ?averagePrice) 
 WHERE {
-# Obtenemos las casas con sus features de dirección
+# Obtenemos las casas con sus features de Address
 ?realEstateSite a :House;
  :hasFeature ?featureAddress.
 
-# Obtenemos el blank node de la dirección postal
-?featureAddress :hasValue ?bnPostalAddress.
+# Obtenemos los labels del feature Address
+?featureAddress a :Address; 
+  :hasValue/:city/rdfs:label ?cityLabel.
 
-# Obtenemos ciudad y su label
-?bnPostalAddress :city ?city.
-?city rdfs:label ?cityLabel.
+# Obtenemos los listings asociados a los realEstateSites (optimizado)
+?realEstateSite ^sioc:about ?realEstateListing.
 
-# Obtenemos el listing asociado al real estate site y su feature de precio
-?realEstateListing sioc:about ?realEstateSite;
- :hasFeature ?featurePrice.
+# Obtenemos los features de los listings
+?realEstateListing a pronto:RealEstateListing;
+  :hasFeature ?featurePrice.
 
-# Obtenemos el blank node de la feature de precio
-?featurePrice :hasValue ?bnPrice.
+# Fijamos los features a precio BASE (excluimos mantenimiento) y extraemos precio, moneda 
+?featurePrice a :Price;
+  :hasValue [
+    gr:hasCurrencyValue ?price;
+    gr:hasCurrency ?currency;
+    gr:priceType "BASE"^^xsd:string
+  ].
 
-# Obtenemos el valor, moneda y filtramos por tipo de precio base (no mantenimiento)
-?bnPrice gr:hasCurrencyValue ?price;
- gr:hasCurrency ?currency;
- gr:priceType "BASE"^^xsd:string.
-
-# Convertir ARS a USD dividiendo por 1200
+# Convertir ARS a USD
 BIND(
   IF(?currency = "ARS"^^xsd:string, 
-    ?price / 1350, # El precio del dolar debería actualizarse según el dia de consulta
+    ?price / 1350,
     ?price
   ) AS ?priceUSD
 )
 
+# Filtramos por ciudades "La Plata"
 FILTER(?cityLabel = "La Plata")
 }
 # OUTPUT
@@ -55,21 +55,20 @@ FILTER(?cityLabel = "La Plata")
 
 # -----------------------------------------------------------------------------------------------------------------------------
 # PUNTO 2 - ¿Hay oferta de departamentos en Los Talas (Berisso)? -
-
 SELECT ?realEstateListing
 WHERE {
-# Obtenemos las casas con sus features de dirección
-?realEstateSite a :House;
- :hasFeature/:hasValue/:Neighborhood/rdfs:label ?neighborhoodLabel.
+# Obtenemos los departamentos y los labels de sus barrios
+?realEstateSite a :Apartment;
+ :hasFeature/:hasValue/:neighborhood/rdfs:label ?neighborhoodLabel.
 
-# Obtenemos el listing asociado al real estate site y su feature de precio
+# Obtenemos el listing asociado al real estate site
 ?realEstateListing sioc:about ?realEstateSite.
 
-FILTER CONTAINS(?neighborhoodLabel, "Los Talas")
-} LIMIT 100
+FILTER(?neighborhoodLabel = "Barrio Los Talas de Berisso")
+}
 
 # OUTPUT
-# -
+# - (la única propiedad en Los Talas es un :RealEstate)
 
 # -----------------------------------------------------------------------------------------------------------------------------
 # PUNTO 3 - ¿Cuál es el precio en dólares por metro cuadrado de los terrenos en La Plata? -
@@ -81,15 +80,17 @@ WHERE {
  :hasFeature ?featureAddress;
  rec:includes ?space.
 
-# Nos aseguramos que las features sean de dirección y no de otro tipo
-# Obtenemos el blank node de la dirección postal
+# Nos aseguramos que las features sean de dirección y obtenemos ciudad
 ?featureAddress a :Address;
-  :hasValue ?bnPostalAddress.
+  :hasValue [
+    a :PostalAddress;
+    :city ?city
+  ].
 
-# Obtenemos ciudad
-?bnPostalAddress :city/rdfs:label ?cityLabel.
+# Obtenemos label de ciudad
+?city rdfs:label ?cityLabel.
 
-# Nos aseguramos que el space sea Site y no Building, y obtenemos feature total space land
+# Nos aseguramos que el space sea Site y no Building, y obtenemos feature surface
 ?space a rec:Site;
   :hasFeature ?featureSpace.
 
@@ -116,11 +117,11 @@ WHERE {
     gr:priceType "BASE"^^xsd:string
   ].
 
-# Filtramos solo las unidades que nos interesan (hectáreas y metros cuadrados) y ubicados en Mar Del Plata
+# Filtramos solo las unidades que nos interesan (hectáreas y metros cuadrados) y ubicados en La Plata
 FILTER(?sizeUnit IN ("ha"^^xsd:string, "m²"^^xsd:string))
 FILTER(?cityLabel = "La Plata")
 
-# Convertir ARS a USD dividiendo por 1200
+# Convertir ARS a USD
 BIND(
   IF(?currency = "ARS"^^xsd:string, 
     ?price / 1375, 
@@ -128,9 +129,7 @@ BIND(
   ) AS ?priceUSD
 )
 
-# Calcular precio por m2 según la unidad:
-# - Si está en hectáreas: convertir a m2 (multiplicar por 10,000) y dividir precio
-# - Si está en m2: dividir precio directamente
+# Calcular precio por m2 según la unidad
 BIND(
     IF(?sizeUnit = "ha"^^xsd:string, 
         ?priceUSD / (?size * 10000), 
@@ -190,7 +189,7 @@ WHERE {
 
 # Filtramos solo las unidades que nos interesan (hectáreas y metros cuadrados) y ubicados en los barrios buscados
 FILTER(?sizeUnit IN ("ha"^^xsd:string, "m²"^^xsd:string))
-FILTER(CONTAINS(LCASE(STR(?neighborhoodLabel)), "villa elvira") || CONTAINS(LCASE(STR(?neighborhoodLabel)), "city bell"))
+FILTER(?neighborhoodLabel = "City Bell" || ?neighborhoodLabel = "Villa Elvira")
 # Convertir ARS a USD
 BIND(
   IF(?currency = "ARS"^^xsd:string, 
@@ -211,3 +210,8 @@ BIND(
 
 } 
 GROUP BY ?neighborhoodLabel
+
+# OUTPUT
+# neighborhoodLabel | avgPriceM2
+# "City Bell" = 670.9239501953125
+# "Villa Elvira" = 456.1686706542969

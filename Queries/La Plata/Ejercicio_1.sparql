@@ -1,0 +1,52 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX inmo: <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX avis: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+PREFIX : <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX time: <http://www.w3.org/2006/time#>
+PREFIX sioc: <http://rdfs.org/sioc/ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rec: <https://w3id.org/rec#>
+PREFIX gr: <http://purl.org/goodrelations/v1#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+
+
+# PUNTO 1 - ¿Cuánto vale una casa en La Plata (no está cargado Berisso como ciudad)? -
+SELECT (AVG(?price) as ?averagePrice) 
+WHERE {
+# Obtenemos las casas con sus features de Address
+?realEstateSite a :House;
+ :hasFeature ?featureAddress.
+
+# Obtenemos los labels del feature Address
+?featureAddress a :Address; 
+  :hasValue/:city/rdfs:label ?cityLabel.
+
+# Obtenemos los listings asociados a los realEstateSites (optimizado)
+?realEstateSite ^sioc:about ?realEstateListing.
+
+# Obtenemos los features de los listings
+?realEstateListing a pronto:RealEstateListing;
+  :hasFeature ?featurePrice.
+
+# Fijamos los features a precio BASE (excluimos mantenimiento) y extraemos precio, moneda 
+?featurePrice a :Price;
+  :hasValue [
+    gr:hasCurrencyValue ?price;
+    gr:hasCurrency ?currency;
+    gr:priceType "BASE"^^xsd:string
+  ].
+
+# Convertir ARS a USD
+BIND(
+  IF(?currency = "ARS"^^xsd:string, 
+    ?price / 1350,
+    ?price
+  ) AS ?priceUSD
+)
+
+# Filtramos por ciudades "La Plata"
+FILTER(?cityLabel = "La Plata")
+}
+# OUTPUT
+# averagePrice: 1372889.875

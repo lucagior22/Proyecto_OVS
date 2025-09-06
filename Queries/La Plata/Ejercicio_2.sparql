@@ -1,0 +1,27 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX inmo: <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX avis: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+PREFIX : <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX time: <http://www.w3.org/2006/time#>
+PREFIX sioc: <http://rdfs.org/sioc/ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rec: <https://w3id.org/rec#>
+PREFIX gr: <http://purl.org/goodrelations/v1#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+
+# PUNTO 2 - ¿Hay oferta de departamentos en Los Talas (Berisso)? -
+SELECT ?realEstateListing
+WHERE {
+# Obtenemos los departamentos y los labels de sus barrios
+?realEstateSite a :Apartment;
+ :hasFeature/:hasValue/:neighborhood/rdfs:label ?neighborhoodLabel.
+
+# Obtenemos el listing asociado al real estate site
+?realEstateListing sioc:about ?realEstateSite.
+
+FILTER(?neighborhoodLabel = "Barrio Los Talas de Berisso")
+}
+
+# OUTPUT
+# - (la única propiedad en Los Talas es un :RealEstate)
