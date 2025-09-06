@@ -1,0 +1,67 @@
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX inmo: <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX avis: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+PREFIX : <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX time: <http://www.w3.org/2006/time#>
+PREFIX sioc: <http://rdfs.org/sioc/ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rec: <https://w3id.org/rec#>
+PREFIX gr: <http://purl.org/goodrelations/v1#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+
+# PUNTO 5 - ¿Qué características tiene el mercado inmobiliario en City Bell? -
+# - Tipo (Departamento, Terreno, Casa, etc)
+# - Count
+# - Precio AVG
+
+SELECT ?typeLabel (COUNT(?typeLabel) AS ?count) (ROUND(AVG(?priceUSD)) AS ?avgRoundedPriceUSD)
+WHERE {
+  # Obtenemos realEstateSites junto con sus tipos y feature address
+  ?realEstateSite a ?type;
+    :hasFeature ?featureAddress.
+
+  # Obtenemos el barrio
+  ?featureAddress a :Address; 
+    :hasValue [
+      :neighborhood ?neighborhood
+    ].
+
+  # Obtenemos el label del barrio
+  ?neighborhood rdfs:label ?neighborhoodLabel.
+
+  # Obtenemos el listing asociado al real estate site
+  ?realEstateSite ^sioc:about ?listing.
+  
+  ?listing :hasFeature ?featurePrice.
+
+  # Obtenemos el blank node de la dirección
+  ?featurePrice a :Price;
+    :hasValue [
+      gr:hasCurrency ?currency;
+      gr:hasCurrencyValue ?price;
+      gr:priceType "BASE"^^xsd:string
+    ].
+
+  # Filtramos por City Bell
+  FILTER(?neighborhoodLabel = "City Bell")
+
+  # Convertir ARS a USD
+  BIND(
+    IF(?currency = "ARS"^^xsd:string, 
+      ?price / 1365, 
+      ?price
+    ) AS ?priceUSD
+  )
+  BIND(REPLACE(STRAFTER(STR(?type), "#"), "%20", " ") AS ?typeLabel)
+} GROUP BY ?typeLabel
+# OUTPUT
+# typeLabel | count | avgRoundedPriceUSD
+# "House" | 1104 | 10261722
+# "Land" | 658 | 121682
+# "Store" | 74 | 209979
+# "RealEstate" | 37 | 188468
+# "Apartment" | 131 | 154884
+# "ParkingLot" | 2 | 13000
+# "CondominiumUnit" | 26 | 128519
+# "Warehouse" | 9 | 87778
