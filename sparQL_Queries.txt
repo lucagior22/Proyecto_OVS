@@ -1,0 +1,985 @@
+===============================================================================================================================
+PUNTO 1
+===============================================================================================================================
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX inmo: <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX avis: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+PREFIX io:<http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX time: <http://www.w3.org/2006/time#>
+PREFIX sioc: <http://rdfs.org/sioc/ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rec: <https://w3id.org/rec#>
+PREFIX gr: <http://purl.org/goodrelations/v1#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+
+# ¿Cuánto vale una casa en Brandsen?
+
+SELECT ?realEstateSite ?cityLabel ?price ?currency
+WHERE {
+# Obtenemos las casas con sus features de dirección
+?realEstateSite a io:Casa;
+ io:hasFeature ?featureAddress.
+
+# Obtenemos el blank node de la dirección postal
+?featureAddress io:hasValue ?bnPostalAddress.
+
+# Obtenemos ciudad y su label
+?bnPostalAddress io:city ?city.
+?city rdfs:label ?cityLabel.
+
+# Obtenemos el listing asociado al real estate site y su feature de precio
+?realEstateListing sioc:about ?realEstateSite;
+ io:hasFeature ?featurePrice.
+
+# Obtenemos el blank node de la feature de precio
+?featurePrice io:hasValue ?bnPrice.
+
+# Obtenemos el valor, moneda y filtramos por tipo de precio base (no mantenimiento)
+?bnPrice gr:hasCurrencyValue ?price;
+ gr:hasCurrency ?currency;
+ gr:priceType "BASE"^^xsd:string.
+
+# Filtramos las ciudades con el IRI de Brandsen
+FILTER(?city = io:district_Brandsen_Buenos_Aires_Interior)
+} LIMIT 200
+
+///
+3/7
+- Podria cambiarse el resultado a AVG.
+- Property paths
+	- ?s ?p/:otraProperty permite apilar propiedades
+	- ?s ^:propiedad "invierte" la propiedad
+- Agregar el tipo de listing pronto:RealEstateSite
+- settear el tipo de ?s a :Type es una buena práctica para asegurar que se relacionan las instancias deseadas.
+	- La consulta mantiene su objetivo si el grafo cambia.
+///
+===============================================================================================================================
+PUNTO 2
+===============================================================================================================================
+
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX inmo: <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX avis: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+PREFIX io:<http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX time: <http://www.w3.org/2006/time#>
+PREFIX sioc: <http://rdfs.org/sioc/ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rec: <https://w3id.org/rec#>
+PREFIX gr: <http://purl.org/goodrelations/v1#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+
+# ¿Hay oferta de departamentos en Barrio Centro (MDQ)?
+
+SELECT ?realEstateSite ?address
+WHERE {
+# Obtenemos los departamentos con sus features de dirección
+?realEstateSite a io:Departamento;
+ io:hasFeature ?featureAddress.
+
+# Obtenemos el blank node de la dirección postal
+?featureAddress io:hasValue ?bnPostalAddress.
+
+# Obtenemos barrio y dirección
+?bnPostalAddress io:neighborhood ?neighborhood;
+  io:address ?address.
+
+# Filtramos el barrio
+FILTER(?neighborhood = io:neiborhood_province_Bs.As._Costa_Atl%25C3%25A1ntica_district_Mar_del_Plata_Bs.As._Costa_Atl%25C3%25A1ntica_Centro)
+
+} LIMIT 200
+
+# PREGUNTAS
+# !El grafo es el grafo actualizado de Mateo del 29/5/2025
+# 1) Con esta consulta ocurre lo siguiente:
+# Hay dos feature address para un mismo id de realEstateSite (A1390861811),
+# Lo único que cambia entre estas es un número que intepreto es la versión.
+# ¿Debiéramos ponderar más una "versión" sobre la otra?
+#
+# 2) Si cambio la IRI del Barrio Centro por la de Barrio Chapadmalal (Chapadmalal) SIN FILTRO DE TIPO (a ?type) ocurre lo siguiente:
+# la consulta retorna un solo realEstateSite cuando con CTRL+F en el .ttl observo ~4.
+# El IRI es el mismo, la relación es :neighborhood y no pude encontrar el porqué de este comportamiento.
+#
+# 3) La consulta arroja varias address que parecieran estar refiriéndose al mismo lugar físico:
+# ¿Existe algún mecanismo desde el lado de la consulta para filtrar estos "duplicados"?
+# Algo como el SameAs pero desde el lado de la consulta, sin modificar el .ttl
+
+//
+
+===============================================================================================================================
+PUNTO 3
+===============================================================================================================================
+
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX inmo: <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX avis: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+PREFIX io:<http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX time: <http://www.w3.org/2006/time#>
+PREFIX sioc: <http://rdfs.org/sioc/ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rec: <https://w3id.org/rec#>
+PREFIX gr: <http://purl.org/goodrelations/v1#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+
+# ¿Cuál es el precio en dólares por metro cuadrado de los terrenos en Mar Del Plata?
+
+SELECT ?realEstateSite ?address ?priceM2
+WHERE {
+# Obtenemos los terrenos con sus feature de dirección y space físico.
+?realEstateSite a io:Terreno;
+ io:hasFeature ?featureAddress;
+ rec:includes ?space.
+
+# Nos aseguramos que las features sean de dirección y no de otro tipo
+?featureAddress a io:Direccion.
+
+# Obtenemos el blank node de la dirección postal
+?featureAddress io:hasValue ?bnPostalAddress.
+
+# Obtenemos barrio y dirección
+?bnPostalAddress io:city ?city;
+  io:address ?address.
+
+# Nos aseguramos que el space sea Site y no Building, y obtenemos feature total space land
+?space a rec:Site;
+  io:hasFeature ?featureSpace.
+
+# Obtenemos el blank node de size specification
+?featureSpace a io:Superficie;
+  io:hasValue ?bnSizeSpecification.
+
+# Obtenemos la especificacion del tamaño del terreno
+?bnSizeSpecification a pronto:SizeSpecification;
+  gr:hasValue ?size;
+  gr:hasUnitOfMeasurement ?sizeUnit.
+
+# Obtenemos el listing asociado al real estate site
+?listing a pronto:RealEstateListing;
+  sioc:about ?realEstateSite;
+  io:hasFeature ?featurePrice.
+
+# Obtenemos el blank node de la especificación de precio
+?featurePrice a io:Precio;
+  io:hasValue ?bnPriceSpecification.
+
+# Obtenemos el precio, moneda y fijamos el tipo de precio a BASE excluyendo mantenimiento
+?bnPriceSpecification a gr:UnitPriceSpecification;
+  gr:hasCurrencyValue ?price;
+  gr:hasCurrency ?currency;
+  gr:priceType "BASE"^^xsd:string.
+
+# Filtramos solo las unidades que nos interesan (hectáreas y metros cuadrados) y ubicados en Mar Del Plata
+FILTER(?sizeUnit IN ("ha"^^xsd:string, "m²"^^xsd:string))
+FILTER(?city = io:district_Mar_del_Plata_Bs.As._Costa_Atl%C3%A1ntica)
+
+# Convertir ARS a USD dividiendo por 1200
+BIND(
+  IF(?currency = "ARS"^^xsd:string, 
+    ?price / 1200, 
+    ?price
+  ) AS ?priceUSD
+)
+
+# Calcular precio por m2 según la unidad:
+# - Si está en hectáreas: convertir a m2 (multiplicar por 10,000) y dividir precio
+# - Si está en m2: dividir precio directamente
+BIND(
+    IF(?sizeUnit = "ha"^^xsd:string, 
+        ?priceUSD / (?size * 10000), 
+        ?priceUSD / ?size
+    ) AS ?priceM2
+)
+} LIMIT 200
+===============================================================================================================================
+PUNTO 4
+===============================================================================================================================
+*******************************************************************************************************************************
+# SEGUNDA RESOLUCIÓN CALCULANDO AVG (CON AYUDA DE CLAUDE.AI)
+*******************************************************************************************************************************
+
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX inmo: <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX avis: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+PREFIX io:<http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX time: <http://www.w3.org/2006/time#>
+PREFIX sioc: <http://rdfs.org/sioc/ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rec: <https://w3id.org/rec#>
+PREFIX gr: <http://purl.org/goodrelations/v1#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+
+# ¿Qué diferencia de precio por m2 existe entre los terrenos de Barrio None (MDQ) y Otros Barrios (MDQ)?
+# Obviamente None no es un barrio pero es el que encontré con varios terrenos para poder hacer la consulta.
+
+SELECT ?neighborhoodLabel (AVG(?priceM2) AS ?avgPriceM2)
+WHERE {
+# Obtenemos los terrenos con sus feature de dirección y space físico.
+?realEstateSite a io:Terreno;
+ io:hasFeature ?featureAddress;
+ rec:includes ?space.
+
+# Nos aseguramos que las features sean de dirección y no de otro tipo
+?featureAddress a io:Direccion.
+
+# Obtenemos el blank node de la dirección postal
+?featureAddress io:hasValue ?bnPostalAddress.
+
+# Obtenemos barrio y dirección
+?bnPostalAddress io:neighborhood ?neighborhood;
+  io:address ?address.
+
+# Nos aseguramos que el space sea Site y no Building, y obtenemos feature total space land
+?space a rec:Site;
+  io:hasFeature ?featureSpace.
+
+# Obtenemos el blank node de size specification
+?featureSpace a io:Superficie;
+  io:hasValue ?bnSizeSpecification.
+
+# Obtenemos la especificacion del tamaño del terreno
+?bnSizeSpecification a pronto:SizeSpecification;
+  gr:hasValue ?size;
+  gr:hasUnitOfMeasurement ?sizeUnit.
+
+# Obtenemos el listing asociado al real estate site
+?listing a pronto:RealEstateListing;
+  sioc:about ?realEstateSite;
+  io:hasFeature ?featurePrice.
+
+# Obtenemos el blank node de la especificación de precio
+?featurePrice a io:Precio;
+  io:hasValue ?bnPriceSpecification.
+
+# Obtenemos el precio, moneda y fijamos el tipo de precio a BASE excluyendo mantenimiento
+?bnPriceSpecification a gr:UnitPriceSpecification;
+  gr:hasCurrencyValue ?price;
+  gr:hasCurrency ?currency;
+  gr:priceType "BASE"^^xsd:string.
+
+# Filtramos solo las unidades que nos interesan (hectáreas y metros cuadrados) y ubicados en los barrios buscados
+FILTER(?sizeUnit IN ("ha"^^xsd:string, "m²"^^xsd:string))
+FILTER(?neighborhood = io:neiborhood_province_Bs.As._Costa_Atl%25C3%25A1ntica_district_Mar_del_Plata_Bs.As._Costa_Atl%25C3%25A1ntica_Otros%20Barrios || ?neighborhood = io:neiborhood_province_Bs.As._Costa_Atl%25C3%25A1ntica_district_Mar_del_Plata_Bs.As._Costa_Atl%25C3%25A1ntica_None)
+
+# Convertir ARS a USD dividiendo por 1200
+BIND(
+  IF(?currency = "ARS"^^xsd:string, 
+    ?price / 1200, 
+    ?price
+  ) AS ?priceUSD
+)
+
+# Calcular precio por m2 según la unidad:
+# - Si está en hectáreas: convertir a m2 (multiplicar por 10,000) y dividir precio
+# - Si está en m2: dividir precio directamente
+BIND(
+    IF(?sizeUnit = "ha"^^xsd:string, 
+        ?priceUSD / (?size * 10000), 
+        ?priceUSD / ?size
+    ) AS ?priceM2
+)
+
+# Creamos las label de barrio para hacerlo mas legible
+BIND(IF(?neighborhood = io:neiborhood_province_Bs.As._Costa_Atl%25C3%25A1ntica_district_Mar_del_Plata_Bs.As._Costa_Atl%25C3%25A1ntica_None, 
+        "None"^^xsd:string,
+        "Otros"^^xsd:string
+    ) AS ?neighborhoodLabel)
+
+
+} 
+GROUP BY ?neighborhoodLabel
+ORDER BY ?neighborhoodLabel
+LIMIT 200
+
+*******************************************************************************************************************************
+# TERCERA RESOLUCIÓN CON RESTA (CON AYUDA DE CLAUDE.AI)
+*******************************************************************************************************************************
+
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX inmo: <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX avis: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+PREFIX io:<http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX time: <http://www.w3.org/2006/time#>
+PREFIX sioc: <http://rdfs.org/sioc/ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rec: <https://w3id.org/rec#>
+PREFIX gr: <http://purl.org/goodrelations/v1#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+
+# ¿Qué diferencia de precio por m2 existe entre los terrenos de Barrio None (MDQ) y Otros Barrios (MDQ)?
+# Obviamente None no es un barrio pero es el que encontré con varios terrenos para poder hacer la consulta.
+
+SELECT ((?avgNone - ?avgOtros) AS ?diferenciaPriceM2)
+WHERE {
+  {
+    SELECT (AVG(?priceM2) AS ?avgNone)
+    WHERE {
+      # Obtenemos los terrenos con sus feature de dirección y space físico.
+      ?realEstateSite a io:Terreno;
+       io:hasFeature ?featureAddress;
+       rec:includes ?space.
+
+      # Nos aseguramos que las features sean de dirección y no de otro tipo
+      ?featureAddress a io:Direccion.
+
+      # Obtenemos el blank node de la dirección postal
+      ?featureAddress io:hasValue ?bnPostalAddress.
+
+      # Obtenemos barrio y dirección
+      ?bnPostalAddress io:neighborhood ?neighborhood;
+        io:address ?address.
+
+      # Nos aseguramos que el space sea Site y no Building, y obtenemos feature total space land
+      ?space a rec:Site;
+        io:hasFeature ?featureSpace.
+
+      # Obtenemos el blank node de size specification
+      ?featureSpace a io:Superficie;
+        io:hasValue ?bnSizeSpecification.
+
+      # Obtenemos la especificacion del tamaño del terreno
+      ?bnSizeSpecification a pronto:SizeSpecification;
+        gr:hasValue ?size;
+        gr:hasUnitOfMeasurement ?sizeUnit.
+
+      # Obtenemos el listing asociado al real estate site
+      ?listing a pronto:RealEstateListing;
+        sioc:about ?realEstateSite;
+        io:hasFeature ?featurePrice.
+
+      # Obtenemos el blank node de la especificación de precio
+      ?featurePrice a io:Precio;
+        io:hasValue ?bnPriceSpecification.
+
+      # Obtenemos el precio, moneda y fijamos el tipo de precio a BASE excluyendo mantenimiento
+      ?bnPriceSpecification a gr:UnitPriceSpecification;
+        gr:hasCurrencyValue ?price;
+        gr:hasCurrency ?currency;
+        gr:priceType "BASE"^^xsd:string.
+
+      # Filtramos solo las unidades que nos interesan y el barrio None
+      FILTER(?sizeUnit IN ("ha"^^xsd:string, "m²"^^xsd:string))
+      FILTER(?neighborhood = io:neiborhood_province_Bs.As._Costa_Atl%25C3%25A1ntica_district_Mar_del_Plata_Bs.As._Costa_Atl%25C3%25A1ntica_None)
+
+      # Calcular precio por m2
+      BIND(
+          IF(?sizeUnit = "ha"^^xsd:string, 
+              ?price / (?size * 10000), 
+              ?price / ?size
+          ) AS ?priceM2
+      )
+    }
+  }
+  {
+    SELECT (AVG(?priceM2) AS ?avgOtros)
+    WHERE {
+      # Obtenemos los terrenos con sus feature de dirección y space físico.
+      ?realEstateSite a io:Terreno;
+       io:hasFeature ?featureAddress;
+       rec:includes ?space.
+
+      # Nos aseguramos que las features sean de dirección y no de otro tipo
+      ?featureAddress a io:Direccion.
+
+      # Obtenemos el blank node de la dirección postal
+      ?featureAddress io:hasValue ?bnPostalAddress.
+
+      # Obtenemos barrio y dirección
+      ?bnPostalAddress io:neighborhood ?neighborhood;
+        io:address ?address.
+
+      # Nos aseguramos que el space sea Site y no Building, y obtenemos feature total space land
+      ?space a rec:Site;
+        io:hasFeature ?featureSpace.
+
+      # Obtenemos el blank node de size specification
+      ?featureSpace a io:Superficie;
+        io:hasValue ?bnSizeSpecification.
+
+      # Obtenemos la especificacion del tamaño del terreno
+      ?bnSizeSpecification a pronto:SizeSpecification;
+        gr:hasValue ?size;
+        gr:hasUnitOfMeasurement ?sizeUnit.
+
+      # Obtenemos el listing asociado al real estate site
+      ?listing a pronto:RealEstateListing;
+        sioc:about ?realEstateSite;
+        io:hasFeature ?featurePrice.
+
+      # Obtenemos el blank node de la especificación de precio
+      ?featurePrice a io:Precio;
+        io:hasValue ?bnPriceSpecification.
+
+      # Obtenemos el precio, moneda y fijamos el tipo de precio a BASE excluyendo mantenimiento
+      ?bnPriceSpecification a gr:UnitPriceSpecification;
+        gr:hasCurrencyValue ?price;
+        gr:hasCurrency ?currency;
+        gr:priceType "BASE"^^xsd:string.
+
+      # Filtramos solo las unidades que nos interesan y el barrio Otros Barrios
+      FILTER(?sizeUnit IN ("ha"^^xsd:string, "m²"^^xsd:string))
+      FILTER(?neighborhood = io:neiborhood_province_Bs.As._Costa_Atl%25C3%25A1ntica_district_Mar_del_Plata_Bs.As._Costa_Atl%25C3%25A1ntica_Otros%20Barrios)
+
+      # Calcular precio por m2
+      BIND(
+          IF(?sizeUnit = "ha"^^xsd:string, 
+              ?price / (?size * 10000), 
+              ?price / ?size
+          ) AS ?priceM2
+      )
+    }
+  }
+}
+
+# PREGUNTA SOBRE PUNTO 4
+# ¿Cómo se responden estas preguntas que implican un cálculo?
+
+===============================================================================================================================
+PUNTO 5
+===============================================================================================================================
+
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX inmo: <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX avis: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+PREFIX io:<http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX time: <http://www.w3.org/2006/time#>
+PREFIX sioc: <http://rdfs.org/sioc/ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rec: <https://w3id.org/rec#>
+PREFIX gr: <http://purl.org/goodrelations/v1#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+
+# ¿Qué características tiene el mercado inmobiliario en Barrio Centro (MDQ)?
+# Vamos a responder esta pregunta con 3 columnas (podrian ser cantTipo*2):
+# - Tipo (Departamento, Terreno, Casa, etc)
+# - Count
+# - Precio AVG
+
+SELECT ?typeLabel (COUNT(?typeLabel) AS ?count) (ROUND(AVG(?priceUSD)) AS ?avgRoundedPriceUSD)
+WHERE {
+  # Obtenemos real estate sites junto con sus tipos y feature address
+  ?realEstateSite a ?type;
+    io:hasFeature ?featureAddress.
+
+  # Obtenemos el blank node de la dirección
+  ?featureAddress io:hasValue ?bnPostalAddress.
+
+  # Filtramos el barrio
+  ?bnPostalAddress io:neighborhood io:neiborhood_province_Bs.As._Costa_Atl%25C3%25A1ntica_district_Mar_del_Plata_Bs.As._Costa_Atl%25C3%25A1ntica_Centro.
+
+  # Obtenemos el listing asociado al real estate site
+  ?listing sioc:about ?realEstateSite;
+    io:hasFeature ?featurePrice.
+
+  # Obtenemos el blank node de la dirección
+  ?featurePrice io:hasValue ?bnPriceSpecification.
+
+  # Obtenemos precio
+  ?bnPriceSpecification gr:hasCurrency ?currency;
+    gr:hasCurrencyValue ?price;
+    gr:priceType "BASE"^^xsd:string.
+  
+  # Convertir ARS a USD dividiendo por 1200
+  BIND(
+    IF(?currency = "ARS"^^xsd:string, 
+      ?price / 1200, 
+      ?price
+    ) AS ?priceUSD
+  )
+  BIND(REPLACE(STRAFTER(STR(?type), "#"), "%20", " ") AS ?typeLabel)
+} GROUP BY ?typeLabel
+LIMIT 200
+
+# PREGUNTAS
+# 1) Los listings pueden tener 2 feature price, esto hace que una misma listing cuente como 2
+# ¿Hay solución?
+# 2) ¿Cómo manejamos las conversiones entre pesos y usd?
+# 3) ¿La solución planteada responde correctamente a la pregunta?
+# Nosotros entendimos por características a la oferta (count) y precio (avgPrice), con dichas métricas para cada tipo.
+
+/////
+Anotaciones reunion 3/7
+- Antiguedad es una subclase de feature. Es una característica.
+	- No hay instancais de este tipo de feature en el grafo de ejemplo. 
+
+===============================================================================================================================
+PUNTO 6
+===============================================================================================================================
+
+PREFIX io: <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#> 
+PREFIX brick: <https://brickschema.org/schema/Brick#> 
+PREFIX dc: <http://purl.org/dc/elements/1.1/> 
+PREFIX dcterms: <http://purl.org/dc/terms/> 
+PREFIX foaf: <http://xmlns.com/foaf/0.1/> 
+PREFIX gr: <http://purl.org/goodrelations/v1#> 
+PREFIX ns: <http://www.w3.org/2003/06/sw-vocab-status/ns#> 
+PREFIX owl: <http://www.w3.org/2002/07/owl#> 
+PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#> 
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> 
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> 
+PREFIX rec: <https://w3id.org/rec#> 
+PREFIX sioc: <http://rdfs.org/sioc/ns#> 
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#> 
+PREFIX time: <http://www.w3.org/2006/time#> 
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#> 
+
+#¿Qué precio por metro cuadrado tienen los departamentos en Chapadmalal? ¿Son baratos que en Mar del Plata? 
+SELECT ?ciudad (AVG(?priceM2) AS ?precioM2)
+WHERE {
+
+  # Tomamos todos los departamentos y agarramos sus caracteristicas
+  ?departamento a io:Departamento ;
+    io:hasFeature ?deptoFeature .
+  
+  # Tomamos el blank node de valor
+  ?deptoFeature io:hasValue ?bnFeatureValue .
+
+  # Obtenemos las ciudades
+  ?bnFeatureValue io:city ?ciudad .
+
+  # Filtramos por las ciudades que son Mar del Plata o Chapadmalal
+  FILTER(?ciudad = io:district_Mar_del_Plata_Bs.As._Costa_Atl%C3%A1ntica || ?ciudad = io:district_Chapadmalal_Bs.As._Costa_Atl%C3%A1ntica)
+
+  # Obtenemos los listings de los departamentos
+  ?listing sioc:about ?departamento ;
+    io:hasFeature ?listingFeature .
+
+  # Obtenemos las caracteristicas de los Listings
+  ?listingFeature io:hasValue ?bnListingFeatureValue .
+
+  # Obtenemos el precio base y la moneda
+  ?bnListingFeatureValue gr:hasCurrency ?currency ;
+    gr:hasCurrencyValue ?price ;
+    gr:priceType "BASE"^^xsd:string .
+
+  # Convertir ARS a USD dividiendo por 1200
+  BIND(
+    IF(?currency = "ARS"^^xsd:string, 
+      ?price / 1200, 
+      ?price
+    ) AS ?priceUSD
+  )
+  
+  # Obtenemos la superficie y la unidad de medida de los departamentos
+  ?departamento rec:includes ?space .
+  ?space a rec:Site ;
+    io:hasFeature ?spaceFeature .
+  ?spaceFeature io:hasValue ?bnSpaceFeatureValue .
+  ?bnSpaceFeatureValue gr:hasUnitOfMeasurement ?sizeUnit ;
+    gr:hasValue ?size ;
+    pronto:size_type "covered"^^xsd:string .
+  
+   # Calcular precio por m2
+      BIND(
+          IF(?sizeUnit = "ha"^^xsd:string, 
+              ?priceUSD / (?size * 10000), 
+              ?priceUSD / ?size
+          ) AS ?priceM2
+      )
+}
+GROUP BY ?ciudad
+LIMIT 100
+
+# 1. ¿Cual es la diferencia entre covered y total en las featureSpace de un departamento?
+
+//
+3/7
+
+- Se debe contemplar la temporalidad de los precios.
+	- Hay que quedarse con el ultimo.
+//
+
+
+===============================================================================================================================
+PUNTO 7
+===============================================================================================================================
+
+PREFIX : <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#> 
+PREFIX brick: <https://brickschema.org/schema/Brick#> 
+PREFIX dc: <http://purl.org/dc/elements/1.1/> 
+PREFIX dcterms: <http://purl.org/dc/terms/> 
+PREFIX foaf: <http://xmlns.com/foaf/0.1/> 
+PREFIX gr: <http://purl.org/goodrelations/v1#> 
+PREFIX ns: <http://www.w3.org/2003/06/sw-vocab-status/ns#> 
+PREFIX owl: <http://www.w3.org/2002/07/owl#> 
+PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#> 
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> 
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> 
+PREFIX rec: <https://w3id.org/rec#> 
+PREFIX sioc: <http://rdfs.org/sioc/ns#> 
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#> 
+PREFIX time: <http://www.w3.org/2006/time#> 
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#> 
+
+# ¿Dentro del partido de Mar del Plata dónde puedo encontrar departamentos a estrenar?
+SELECT ?realEstateSite ?listingLabel ?address
+WHERE { 
+    # Property path: departamento -> feature -> value -> postal address (ciudad y dirección)
+    ?realEstateSite a :Departamento;
+        :hasFeature/:hasValue [
+            a :PostalAddress;
+            :city :district_Mar_del_Plata_Bs.As._Costa_Atl%C3%A1ntica;
+            :address ?address
+        ].
+
+    # Property path inverso: departamento <- about <- listing con label
+    ?realEstateSite ^sioc:about [
+        a pronto:RealEstateListing;
+        rdfs:label ?listingLabel;
+        :hasFeature ?priceFeature
+    ].
+    
+    # Filtro para departamentos a estrenar con patrones ampliados
+    FILTER(REGEX(?listingLabel, "a estrenar|nuevo|sin estrenar|0 km|estrenar|brand new", "i"))
+} 
+ORDER BY ?address
+LIMIT 200
+
+*******************************************************************************************************************************
+
+# Departamentos A Estrenar vs Usados en Mar del Plata
+SELECT ?propertyType 
+       (COUNT(*) as ?cantidad)
+       (AVG(?priceUSD) as ?precioPromedio)
+       (MIN(?priceUSD) as ?precioMinimo)
+       (MAX(?priceUSD) as ?precioMaximo)
+WHERE { 
+    # Property path optimizado: departamento -> ubicación en Mar del Plata
+    ?realEstateSite a :Departamento;
+        :hasFeature/:hasValue/:city :district_Mar_del_Plata_Bs.As._Costa_Atl%C3%A1ntica.
+
+    # Property path: listing con precio usando navegación inversa
+    ?realEstateSite ^sioc:about [
+        a pronto:RealEstateListing;
+        rdfs:label ?listingLabel;
+        :hasFeature/:hasValue [
+            gr:hasCurrency ?currency;
+            gr:hasCurrencyValue ?price;
+            gr:priceType "BASE"^^xsd:string
+        ]
+    ].
+    
+  # Convertir ARS a USD dividiendo por 1200
+  BIND(
+    IF(?currency = "ARS"^^xsd:string, 
+      ?price / 1200, 
+      ?price
+    ) AS ?priceUSD
+  )
+
+    # Clasificar entre a estrenar y usado con patrones ampliados
+    BIND(
+        IF(REGEX(?listingLabel, "a estrenar|nuevo|0 km|sin estrenar|estrenar", "i"), 
+           "A_ESTRENAR", 
+           "USADO"
+        ) AS ?propertyType
+    )
+    
+} 
+GROUP BY ?propertyType
+ORDER BY ?propertyType
+
+===============================================================================================================================
+PUNTO 8
+===============================================================================================================================
+PREFIX : <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#> 
+PREFIX brick: <https://brickschema.org/schema/Brick#> 
+PREFIX dc: <http://purl.org/dc/elements/1.1/> 
+PREFIX dcterms: <http://purl.org/dc/terms/> 
+PREFIX foaf: <http://xmlns.com/foaf/0.1/> 
+PREFIX gr: <http://purl.org/goodrelations/v1#> 
+PREFIX ns: <http://www.w3.org/2003/06/sw-vocab-status/ns#> 
+PREFIX owl: <http://www.w3.org/2002/07/owl#> 
+PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#> 
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> 
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> 
+PREFIX rec: <https://w3id.org/rec#> 
+PREFIX sioc: <http://rdfs.org/sioc/ns#> 
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#> 
+PREFIX time: <http://www.w3.org/2006/time#> 
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#> 
+
+# ¿Cuál es el precio en dólares por m2 de los lotes en barrios cerrado o clubes de campo en Mar del Plata?
+SELECT ?cleanNeighborhoodLabel (AVG(?priceUSDM2) as ?avgPriceUSDM2)
+WHERE { 
+    # Property path: departamento -> feature -> value -> postal address (ciudad y dirección)
+    ?realEstateSite a :Terreno;
+        :hasFeature/:hasValue [
+            a :PostalAddress;
+            :city :district_Mar_del_Plata_Bs.As._Costa_Atl%C3%A1ntica;
+            :address ?address;
+            :neighborhood ?neighborhood
+        ];
+        rec:includes ?landSite.
+    
+    ?landSite a rec:Site;
+      :hasFeature/:hasValue [
+        pronto:size_type "total"^^xsd:string;
+        gr:hasUnitOfMeasurement ?sizeUnit;
+        gr:hasValue ?size
+    ].
+
+    # Property path inverso: departamento <- about <- listing con label
+    ?realEstateSite ^sioc:about [
+        a pronto:RealEstateListing;
+        rdfs:label ?listingLabel;
+        :hasFeature/:hasValue [
+          gr:hasCurrency ?currency;
+          gr:hasCurrencyValue ?price;
+          gr:priceType "BASE"^^xsd:string
+        ]
+    ].
+    
+    # Pasamos todos los precios a dolar
+    BIND(
+      IF(?currency = "ARS"^^xsd:string, 
+        ?price / 1200, 
+        ?price
+      ) AS ?priceUSD
+    )
+
+    # Calculamos precios de m2 en usd
+    BIND(
+      IF(?sizeUnit = "ha"^^xsd:string, 
+          ?priceUSD / (?size * 10000), 
+          ?priceUSD / ?size
+      ) AS ?priceUSDM2
+    )
+    # Creo un label del neighborhood (1er BIND) y formateo correctamente (2ndo BIND)
+    BIND(STRAFTER(STR(?neighborhood), "neiborhood_province_Bs.As._Costa_Atl%25C3%25A1ntica_district_Mar_del_Plata_Bs.As._Costa_Atl%25C3%25A1ntica_") AS ?neighborhoodLabel)
+    BIND(
+      REPLACE(
+        REPLACE(
+          REPLACE(
+            REPLACE(
+              REPLACE(
+                REPLACE(
+                  REPLACE(
+                    REPLACE(
+                      REPLACE(
+                        REPLACE(
+                          REPLACE(
+                            REPLACE(
+                              REPLACE(
+                                REPLACE(
+                                  REPLACE(
+                                    REPLACE(
+                                      REPLACE(
+                                        REPLACE(
+                                          REPLACE(
+                                            REPLACE(
+                                              REPLACE(
+                                                REPLACE(
+                                                  REPLACE(?neighborhoodLabel, "%20", " "),
+                                                  "_", " "
+                                                ),
+                                                "%C3%A1", "á"
+                                              ),
+                                              "%C3%A9", "é"
+                                            ),
+                                            "%C3%AD", "í"
+                                          ),
+                                          "%C3%B3", "ó"
+                                        ),
+                                        "%C3%BA", "ú"
+                                      ),
+                                      "%C3%B1", "ñ"
+                                    ),
+                                    "%C3%81", "Á"
+                                  ),
+                                  "%C3%89", "É"
+                                ),
+                                "%C3%8D", "Í"
+                              ),
+                              "%C3%93", "Ó"
+                            ),
+                            "%C3%9A", "Ú"
+                          ),
+                          "%C3%91", "Ñ"
+                        ),
+                        "%C3%BC", "ü"
+                      ),
+                      "%C3%9C", "Ü"
+                    ),
+                    "%C2%A1", "¡"
+                  ),
+                  "%C2%BF", "¿"
+                ),
+                "\\s+", " "
+              ),
+              "^\\s+", ""
+            ),
+            "\\s+$", ""
+          ),
+          "None", "Sin especificar"
+        ),
+        "NULL", "Sin especificar"
+      ) AS ?cleanNeighborhoodLabel
+    )
+
+  FILTER(REGEX(?cleanNeighborhoodLabel, "barrio cerrado|club de campo|country|barrio privado", "i") || REGEX(?listingLabel, "barrio cerrado|club de campo|country|barrio privado", "i"))
+} 
+GROUP BY ?cleanNeighborhoodLabel
+ORDER BY ?cleanNeighborhoodLabel
+LIMIT 200
+
+
+===============================================================================================================================
+PUNTO 9
+===============================================================================================================================
+
+PREFIX : <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#> 
+PREFIX brick: <https://brickschema.org/schema/Brick#> 
+PREFIX dc: <http://purl.org/dc/elements/1.1/> 
+PREFIX dcterms: <http://purl.org/dc/terms/> 
+PREFIX foaf: <http://xmlns.com/foaf/0.1/> 
+PREFIX gr: <http://purl.org/goodrelations/v1#> 
+PREFIX ns: <http://www.w3.org/2003/06/sw-vocab-status/ns#> 
+PREFIX owl: <http://www.w3.org/2002/07/owl#> 
+PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#> 
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> 
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> 
+PREFIX rec: <https://w3id.org/rec#> 
+PREFIX sioc: <http://rdfs.org/sioc/ns#> 
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#> 
+PREFIX time: <http://www.w3.org/2006/time#> 
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#> 
+
+# ¿Dónde se encuentran los terrenos que se escrituran por parte indivisa en Mar del Plata?
+# No conocemos la manera específica de obtener el dato de "indiviso" asique esta consulta es una aproximación
+# hasta que conozcamos la implementación correcta.
+SELECT ?neighborhood
+WHERE {
+  # Obtenemos los terrenos, fijamos la ciudad en Mar del Plata y obtenemos las direcciones 
+  ?realEstateSite a :Terreno;
+    :hasFeature/:hasValue [
+      a :PostalAddress;
+      :city :district_Mar_del_Plata_Bs.As._Costa_Atl%C3%A1ntica;
+      :neighborhood ?neighborhood
+    ].
+  
+  # Ahora deberíamos buscar a los terrenos con escrituras indivisas, pero no sabemos como.
+  # Sabemos que es una feature booleana.
+  # Me baso en las features Es_monetizable y Es_multioferta que también son booleanas.
+  # Asumo que esta feature se relaciona con RealEstateSite y no con otro nodo. 
+  # Sabemos que los nodos que se relacionan con hasFeature son o RealEstateSite, Listing o Space.
+  # En el momento que conozcamos como se relaciona este feature podrémos terminar la query.
+  ?nodoRelacionadoConIndiviso :hasFeature ?featureIndiviso.
+  
+  ?featureIndiviso a :Es_indiviso;
+    :hasValue [
+      a rdfs:Literal;
+      rdfs:label true
+    ]
+}
+LIMIT 100
+
+===============================================================================================================================
+PUNTO 10
+===============================================================================================================================
+
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX inmo: <http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX avis: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+PREFIX io:<http://www.semanticweb.org/luciana/ontologies/2024/8/inmontology#>
+PREFIX time: <http://www.w3.org/2006/time#>
+PREFIX sioc: <http://rdfs.org/sioc/ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX rec: <https://w3id.org/rec#>
+PREFIX gr: <http://purl.org/goodrelations/v1#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX pronto: <https://raw.githubusercontent.com/fdioguardi/pronto/main/ontology/pronto.owl#>
+PREFIX brick: <https://brickschema.org/schema/Brick#> 
+
+# ¿Cómo ha evolucionado el precio del metro cuadrado de los departamentos de 1 ambiente
+# en Mar del Plata entre febrero de 2023 y agosto de 2024?
+
+SELECT ?month (AVG(?priceM2) as ?avgPriceM2)
+WHERE {
+# Obtenemos los terrenos con sus feature de dirección y space físico.
+?realEstateSite a io:Departamento;
+ io:hasFeature ?featureAddress;
+ rec:includes ?space.
+
+{
+  SELECT ?realEstateSite (COUNT(*) as ?rooms)
+  WHERE {
+    ?realEstateSite a io:Departamento;
+      rec:includes/brick:hasPart/brick:hasPart ?habitacion .
+    
+    ?habitacion a rec:Bedroom .
+  }
+  GROUP BY ?realEstateSite
+  HAVING (?rooms = 1)
+}
+
+# Nos aseguramos que las features sean de dirección y no de otro tipo
+?featureAddress a io:Direccion.
+
+# Obtenemos el blank node de la dirección postal
+?featureAddress io:hasValue ?bnPostalAddress.
+
+# Obtenemos barrio y dirección
+?bnPostalAddress io:city ?city;
+  io:address ?address.
+
+# Nos aseguramos que el space sea Site y no Building, y obtenemos feature total space land
+?space a rec:Site;
+  io:hasFeature ?featureSpace.
+
+# Obtenemos el blank node de size specification
+?featureSpace a io:Superficie;
+  io:hasValue ?bnSizeSpecification.
+
+# Obtenemos la especificacion del tamaño del terreno
+?bnSizeSpecification a pronto:SizeSpecification;
+  gr:hasValue ?size;
+  gr:hasUnitOfMeasurement ?sizeUnit.
+
+# Obtenemos el listing asociado al real estate site
+?listing a pronto:RealEstateListing;
+  sioc:about ?realEstateSite;
+  io:hasFeature ?featurePrice.
+
+# Obtenemos el blank node de la especificación de precio
+?featurePrice a io:Precio;
+  io:hasValue ?bnPriceSpecification;
+  time:hasTime [
+    a time:Instant;
+    time:inXSDDateTimeStamp ?timestamp
+  ].
+
+# Obtenemos el precio, moneda y fijamos el tipo de precio a BASE excluyendo mantenimiento
+?bnPriceSpecification a gr:UnitPriceSpecification;
+  gr:hasCurrencyValue ?price;
+  gr:hasCurrency ?currency;
+  gr:priceType "BASE"^^xsd:string.
+
+# Filtramos solo las unidades que nos interesan (hectáreas y metros cuadrados) y ubicados en Mar Del Plata
+FILTER(?sizeUnit IN ("ha"^^xsd:string, "m²"^^xsd:string))
+FILTER(?city = io:district_Mar_del_Plata_Bs.As._Costa_Atl%C3%A1ntica)
+
+# Convertir ARS a USD dividiendo por 1200
+BIND(
+  IF(?currency = "ARS"^^xsd:string, 
+    ?price / 1200, 
+    ?price
+  ) AS ?priceUSD
+)
+
+# Calcular precio por m2 según la unidad:
+# - Si está en hectáreas: convertir a m2 (multiplicar por 10,000) y dividir precio
+# - Si está en m2: dividir precio directamente
+BIND(
+    IF(?sizeUnit = "ha"^^xsd:string, 
+        ?priceUSD / (?size * 10000), 
+        ?priceUSD / ?size
+    ) AS ?priceM2
+)
+
+BIND(SUBSTR(STR(?timestamp), 1, 7) AS ?month)
+
+FILTER(?month >= "2023-02" && ?month <= "2024-08")
+} GROUP BY ?month
