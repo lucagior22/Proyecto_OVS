@@ -1,0 +1,114 @@
+#PUNTO 6 - ¿Qué precio por metro cuadrado tienen los departamentos en Tolosa? ¿Son baratos que en Los Hornos? - 
+
+SELECT *
+WHERE {
+  {
+    SELECT (AVG(?priceM2) as ?averagePriceUSDM2_LosHornos)
+    WHERE {
+      # Tomamos todos los departamentos y agarramos sus caracteristicas
+    ?apartment a :Apartment ;
+      :hasFeature ?featureAddress .
+    
+    # Tomamos el blank node de valor
+    ?featureAddress a :Address;
+      :hasValue/:neighborhood ?neighborhood
+      
+    # Filtramos por los barrios
+    FILTER(?neighborhood = :neighborhood_Los_Hornos_province_Bs.As._G.B.A._Sur_district_Bs.As._G.B.A._Sur_La_Plata || ?neighborhood = :neighborhood_Los_Hornos_province_GBA_Sur_district_GBA_Sur_La_Plata || ?neighborhood = :neighborhood_Los_Hornos_province_Buenos_Aires_district_Buenos_Aires_La_Plata)
+
+    # Obtenemos los listings de los departamentos
+    ?apartment ^sioc:about ?listing.
+
+
+    ?listing a pronto:RealEstateListing;
+      :hasFeature/:hasValue [
+        a gr:UnitPriceSpecification;
+        gr:hasCurrency ?currency ;
+        gr:hasCurrencyValue ?price ;
+        gr:priceType "BASE"^^xsd:string
+      ].
+
+    # Convertir ARS a USD
+    BIND(
+      IF(?currency = "ARS"^^xsd:string, 
+        ?price / 1400, 
+        ?price
+      ) AS ?priceUSD
+    )
+    
+    # Obtenemos la superficie y la unidad de medida de los departamentos
+    ?apartment rec:includes ?space.
+    
+    ?space a rec:Site ;
+      :hasFeature/:hasValue [
+        gr:hasUnitOfMeasurement ?sizeUnit ;
+        gr:hasValue ?size ;
+        pronto:size_type "covered"^^xsd:string 
+      ].
+
+    # Calcular precio por m2
+        BIND(
+            IF(?sizeUnit = "ha"^^xsd:string, 
+                ?priceUSD / (?size * 10000), 
+                ?priceUSD / ?size
+            ) AS ?priceM2
+        )
+    }
+  }
+  {
+    SELECT (AVG(?priceM2) as ?averagePriceUSDM2_Tolosa)
+    WHERE {
+      # Tomamos todos los departamentos y agarramos sus caracteristicas
+    ?apartment a :Apartment ;
+      :hasFeature ?featureAddress .
+    
+    # Tomamos el blank node de valor
+    ?featureAddress a :Address;
+      :hasValue/:neighborhood ?neighborhood
+      
+    # Filtramos por los barrios
+    FILTER(?neighborhood = :neighborhood_Tolosa_province_GBA_Sur_district_GBA_Sur_La_Plata || ?neighborhood = :neighborhood_Tolosa_province_Bs.As._G.B.A._Sur_district_Bs.As._G.B.A._Sur_La_Plata)
+
+    # Obtenemos los listings de los departamentos
+    ?apartment ^sioc:about ?listing.
+
+    ?listing a pronto:RealEstateListing;
+      :hasFeature/:hasValue [
+        a gr:UnitPriceSpecification;
+        gr:hasCurrency ?currency ;
+        gr:hasCurrencyValue ?price ;
+        gr:priceType "BASE"^^xsd:string
+      ].
+
+    # Convertir ARS a USD
+    BIND(
+      IF(?currency = "ARS"^^xsd:string, 
+        ?price / 1400, 
+        ?price
+      ) AS ?priceUSD
+    )
+    
+    # Obtenemos la superficie y la unidad de medida de los departamentos
+    ?apartment rec:includes ?space.
+    
+    ?space a rec:Site ;
+      :hasFeature/:hasValue [
+        gr:hasUnitOfMeasurement ?sizeUnit ;
+        gr:hasValue ?size ;
+        pronto:size_type "covered"^^xsd:string 
+      ].
+
+    # Calcular precio por m2
+        BIND(
+            IF(?sizeUnit = "ha"^^xsd:string, 
+                ?priceUSD / (?size * 10000), 
+                ?priceUSD / ?size
+            ) AS ?priceM2
+        )
+    }
+  }
+}
+
+# OUTPUT
+# avgLosHornos | avgTolosa
+# 870.88177 | 930.69281
